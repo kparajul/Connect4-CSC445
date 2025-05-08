@@ -3,12 +3,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-public class moves {
+public class Moves {
     // Instance variables
     private Map<String, Integer> playerMoves;
 
     // Constructor to initialize
-    public moves() {
+    public Moves() {
         this.playerMoves = Collections.synchronizedMap(new HashMap<String, Integer>());
     }
 

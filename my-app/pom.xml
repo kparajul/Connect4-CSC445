@@ -24,6 +24,11 @@
         <type>pom</type>
         <scope>import</scope>
       </dependency>
+      <dependency>
+        <groupId>org.java-sebsocket</groupId>
+        <artifactId>Java-WebSocket</artifactId>
+        <version>1.5.2</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 
