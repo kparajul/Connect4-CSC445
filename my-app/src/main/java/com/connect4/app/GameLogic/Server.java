@@ -23,7 +23,7 @@ public class Server extends WebSocketServer {
             connection.close();
             return;
         }
-        connection.send("Welcome to Connect4. Send: NEW/JOIN/RECONNECT <playerName> <gameID>(if applicable) to start.");
+        connection.send("Welcome to Connect4. Send: NEW/JOIN/RECONNECT/MOVE <playerName> <gameID>(if applicable) <move>(if applicable) to start.");
     }
 
     @Override
@@ -31,10 +31,12 @@ public class Server extends WebSocketServer {
         System.out.println("Connection closed " + s);
     }
 
+    @Override
     public void onMessage(WebSocket connection, String message){
         String[] parse = message.split(" ");
         if(parse.length<2){
             connection.send("Invalid");
+            return;
         }
 
         if(parse[0].equals("NEW")){
@@ -44,6 +46,7 @@ public class Server extends WebSocketServer {
         }else if (parse[0].equals("JOIN")){
             if (parse.length < 3){
                 connection.send("Join command incorrect. Send: JOIN <playerName> <gameID>");
+                return;
             }
 
             Game joinGame = GameManager.joinGame(parse[1], parse[2]);
@@ -53,10 +56,36 @@ public class Server extends WebSocketServer {
         }else if(parse[0].equals("RECONNECT")){
             if(parse.length<3){
                 connection.send("Reconnect command incorrect. Send: RECONNECT <playerName> <gameID>");
+                return;
             }
 
             Game reGame = GameManager.reconnect(parse[1], parse[2]);
-        }else {
+            connection.send("Rejoined game " + reGame);
+        } else if (parse[0].equals("MOVE")) {
+            if(parse.length<4){
+                connection.send("Here is the command: MOVE <playerName> <GameID> <column>");
+                return;
+            }
+
+            int col = Integer.parseInt(parse[3]);
+
+            Game game = GameManager.getGame(parse[2]);
+            if(!(game.getPlayer1Id().equals(parse[1]) || game.getPlayer2Id().equals(parse[1]))){
+                connection.send("Not your game");
+                return;
+            }
+            if(!game.getPlayerTurn().equals(parse[1])){
+                connection.send("Not your turn");
+                return;
+            }
+            boolean moveMade = game.getGameMoves().makeMove(parse[1],col);
+            if (moveMade){
+                connection.send("Move successfully made");
+            } else {
+                connection.send("Invalid move");
+            }
+
+        } else {
             connection.send("Here is the format: COMMAND <playerName> <GameID>(optional)");
         }
     }

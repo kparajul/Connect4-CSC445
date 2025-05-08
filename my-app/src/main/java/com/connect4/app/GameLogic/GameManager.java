@@ -40,4 +40,8 @@ public class GameManager {
         return null;
     }
 
+    public static Game getGame(String gameID){
+        return allSessions.get(gameID);
+    }
+
 }
