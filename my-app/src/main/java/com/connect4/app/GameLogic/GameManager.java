@@ -7,15 +7,16 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class GameManager {
-    private static final Map<String, Game> allSessions = new ConcurrentHashMap();
+    private static final Map<String, Game> allSessions = new ConcurrentHashMap<>();
 
 
     public static Game joinGame (String playerID, String gameID){
         Game game = null;
         if (allSessions.containsKey(gameID)){
             Game temp = allSessions.get(gameID);
-            if (temp != null || temp.getPlayer2Id() == null){
-                game.setPlayer2Id(playerID);
+            if ((temp != null) && (temp.getPlayer2Id() == null)){
+                temp.setPlayer2Id(playerID);
+                game = temp;
             }
         } else {
             System.out.println("Game doesn't exist lol");
