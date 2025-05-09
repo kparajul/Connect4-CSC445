@@ -5,10 +5,14 @@ import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.server.WebSocketServer;
 
 import java.net.InetSocketAddress;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 import org.java_websocket.WebSocket;
 
 public class Server extends WebSocketServer {
     private final boolean leader;
+    private static final Map<String, WebSocket> playerConnections = new ConcurrentHashMap<>();
 
     public Server(int port, boolean leader){
         super(new InetSocketAddress(port));
@@ -41,6 +45,7 @@ public class Server extends WebSocketServer {
 
         if(parse[0].equals("NEW")){
             String playerName = parse[1];
+            playerConnections.put(playerName, connection);
             Game game = GameManager.createGame(playerName);
             connection.send("Game created! Your game ID is:" + game.getGameId());
         }else if (parse[0].equals("JOIN")){
@@ -48,6 +53,7 @@ public class Server extends WebSocketServer {
                 connection.send("Join command incorrect. Send: JOIN <playerName> <gameID>");
                 return;
             }
+            playerConnections.put(parse[1], connection);
 
             Game joinGame = GameManager.joinGame(parse[1], parse[2]);
             if (joinGame != null) {
@@ -58,6 +64,7 @@ public class Server extends WebSocketServer {
                 connection.send("Reconnect command incorrect. Send: RECONNECT <playerName> <gameID>");
                 return;
             }
+            playerConnections.put(parse[1], connection);
 
             Game reGame = GameManager.reconnect(parse[1], parse[2]);
             connection.send("Rejoined game " + reGame);
@@ -66,24 +73,45 @@ public class Server extends WebSocketServer {
                 connection.send("Here is the command: MOVE <playerName> <GameID> <column>");
                 return;
             }
+            playerConnections.putIfAbsent(parse[1], connection);
 
             int col = Integer.parseInt(parse[3]);
 
             Game game = GameManager.getGame(parse[2]);
-            if(!(game.getPlayer1Id().equals(parse[1]) || game.getPlayer2Id().equals(parse[1]))){
+            String player = parse[1];
+            if(!(game.getPlayer1Id().equals(player) || game.getPlayer2Id().equals(player))){
                 connection.send("Not your game");
                 return;
             }
-            if(!game.getPlayerTurn().equals(parse[1])){
+            if(!game.getPlayerTurn().equals(player)){
                 connection.send("Not your turn");
                 return;
             }
-            boolean moveMade = game.getGameMoves().makeMove(parse[1],col);
+            String opponent;
+
+            if (player.equals(game.getPlayer1Id())){
+                opponent = game.getPlayer2Id();
+            } else {
+                opponent = game.getPlayer1Id();
+            }
+            boolean moveMade = game.getGameMoves().makeMove(player,col);
             if (moveMade){
+                game.setPlayerTurn(opponent);
                 connection.send("Move successfully made");
             } else {
                 connection.send("Invalid move");
             }
+            String board = game.getGameMoves().getBoardString();
+
+            WebSocket playerSocket = playerConnections.get(player);
+            WebSocket opponentSocket = playerConnections.get(opponent);
+            if (playerSocket != null){
+                playerSocket.send(board);
+            }
+            if (opponentSocket != null){
+                opponentSocket.send(board);
+            }
+
 
         } else {
             connection.send("Here is the format: COMMAND <playerName> <GameID>(optional)");

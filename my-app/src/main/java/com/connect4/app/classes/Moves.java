@@ -3,6 +3,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class Moves {
     private final int rows = 6;
@@ -25,6 +26,12 @@ public class Moves {
             }
         }
         return false;
+    }
+
+    public String getBoardString() {
+        return Arrays.stream(board)
+                .map(row -> String.join(" ", row))
+                .collect(Collectors.joining("\n"));
     }
 
 }
