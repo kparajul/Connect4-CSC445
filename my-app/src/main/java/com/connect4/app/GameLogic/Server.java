@@ -75,41 +75,52 @@ public class Server extends WebSocketServer {
             }
             playerConnections.putIfAbsent(parse[1], connection);
 
-            int col = Integer.parseInt(parse[3]);
+            int col;
+            try{
+                col = Integer.parseInt(parse[3]);
+            }catch (NumberFormatException e){
+                connection.send("Move must be a number");
+                return;
+            }
 
             Game game = GameManager.getGame(parse[2]);
             String player = parse[1];
+
             if(!(game.getPlayer1Id().equals(player) || game.getPlayer2Id().equals(player))){
                 connection.send("Not your game");
                 return;
             }
-            if(!game.getPlayerTurn().equals(player)){
-                connection.send("Not your turn");
-                return;
-            }
             String opponent;
+            synchronized (game) {
+                if (!game.getPlayerTurn().equals(player)) {
+                    connection.send("Not your turn");
+                    return;
+                }
 
-            if (player.equals(game.getPlayer1Id())){
-                opponent = game.getPlayer2Id();
-            } else {
-                opponent = game.getPlayer1Id();
-            }
-            boolean moveMade = game.getGameMoves().makeMove(player,col);
-            if (moveMade){
-                game.setPlayerTurn(opponent);
-                connection.send("Move successfully made");
-            } else {
-                connection.send("Invalid move");
+
+                if (player.equals(game.getPlayer1Id())) {
+                    opponent = game.getPlayer2Id();
+                } else {
+                    opponent = game.getPlayer1Id();
+                }
+                boolean moveMade = game.getGameMoves().makeMove(player, col);
+                if (moveMade) {
+                    game.setPlayerTurn(opponent);
+                    connection.send("Move successfully made");
+                } else {
+                    connection.send("Invalid move");
+                    return;
+                }
             }
             String board = game.getGameMoves().getBoardString();
 
             WebSocket playerSocket = playerConnections.get(player);
             WebSocket opponentSocket = playerConnections.get(opponent);
             if (playerSocket != null){
-                playerSocket.send(board);
+                playerSocket.send("You played column " + col + ". Board:\n" + board + "\nWaiting for " + opponent + ".");
             }
             if (opponentSocket != null){
-                opponentSocket.send(board);
+                opponentSocket.send(player+ "played column " + col + ". Board:\n" + board + "\nYour turnr ");
             }
 
 

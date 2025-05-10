@@ -11,7 +11,4 @@ public class RaftManager {
         leader = l;
     }
 
-    public static void chooseNewLeader(boolean n){
-        leader = n;
-    }
 }
