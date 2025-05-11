@@ -1,8 +1,5 @@
 package com.connect4.app.classes;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class Moves {
@@ -19,8 +16,11 @@ public class Moves {
     }
 
     public boolean makeMove(String playerID, int col){
-        for(int r = 0; r<rows; r++){
-            if (board[r][col].isEmpty()){
+        if(col<0 || col >= columns){
+            return false;
+        }
+        for(int r = rows-1; r>=0; r--){
+            if (board[r][col] == null){
                 board[r][col] = playerID;
                 return true;
             }
@@ -28,9 +28,79 @@ public class Moves {
         return false;
     }
 
+    public boolean checkWin(String playerID){
+        return checkVertical(playerID) || checkHorizontal(playerID) || checkDiagonal(playerID);
+    }
+
+    public boolean checkVertical(String playerID){
+        for(int col = 0; col<columns; col++){
+            int count = 0;
+            for (int row = 0; row<rows; row++){
+                if (playerID.equals(board[row][col])){
+                    count++;
+                    if(count == 4){return true;}
+                } else {
+                    count = 0;
+                }
+            }
+        }
+        return false;
+    }
+
+    public boolean checkHorizontal(String playerID){
+        for(int row = 0; row<rows; row++){
+            int count = 0;
+            for(int col = 0; col<columns; col++){
+                if(playerID.equals(board[row][col])){
+                    count++;
+                    if(count==4){return true;}
+                } else {
+                    count=0;
+                }
+            }
+        }
+        return false;
+    }
+
+    public boolean checkDiagonal(String playerID){
+        for(int row = 0; row<rows-3; row++){
+            for(int col = 0; col<columns-3; col++) {
+                if(playerID.equals(board[row][col]) && playerID.equals(board[row+1][col+1])
+                && playerID.equals(board[row+2][col+2]) && playerID.equals(board[row+3][col+3])
+                ){return true;}
+            }
+        }
+        for (int row = 3; row < rows; row++) {
+            for (int col = 0; col < columns - 3; col++) {
+                if (playerID.equals(board[row][col]) &&
+                        playerID.equals(board[row - 1][col + 1]) &&
+                        playerID.equals(board[row - 2][col + 2]) &&
+                        playerID.equals(board[row - 3][col + 3])) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public boolean isBoardFull(){
+        for(int row = 0; row<rows; row++){
+            for(int col = 0; col<columns; col++){
+                if(board[row][col] == null){
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+
+    //Got this display from chatGPT
     public String getBoardString() {
         return Arrays.stream(board)
-                .map(row -> String.join(" ", row))
+                .map(row -> Arrays.stream(row)
+                        .map(cell -> cell == null ? "." : cell.substring(0, 1)) // Optional: abbreviate names
+                        .collect(Collectors.joining(" ")))
                 .collect(Collectors.joining("\n"));
     }
 

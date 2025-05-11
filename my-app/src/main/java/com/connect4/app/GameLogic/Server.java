@@ -73,6 +73,7 @@ public class Server extends WebSocketServer {
                 connection.send("Here is the command: MOVE <playerName> <GameID> <column>");
                 return;
             }
+            String gameID = parse[2];
             playerConnections.putIfAbsent(parse[1], connection);
 
             int col;
@@ -104,25 +105,48 @@ public class Server extends WebSocketServer {
                     opponent = game.getPlayer1Id();
                 }
                 boolean moveMade = game.getGameMoves().makeMove(player, col);
-                if (moveMade) {
-                    game.setPlayerTurn(opponent);
-                    connection.send("Move successfully made");
-                } else {
-                    connection.send("Invalid move");
+
+                if(!moveMade){
+                    connection.send("That's invalid bro");
                     return;
                 }
-            }
-            String board = game.getGameMoves().getBoardString();
 
-            WebSocket playerSocket = playerConnections.get(player);
-            WebSocket opponentSocket = playerConnections.get(opponent);
-            if (playerSocket != null){
-                playerSocket.send("You played column " + col + ". Board:\n" + board + "\nWaiting for " + opponent + ".");
-            }
-            if (opponentSocket != null){
-                opponentSocket.send(player+ "played column " + col + ". Board:\n" + board + "\nYour turnr ");
-            }
+                String board = game.getGameMoves().getBoardString();
 
+                WebSocket playerSocket = playerConnections.get(player);
+                WebSocket opponentSocket = playerConnections.get(opponent);
+
+                boolean draw = false;
+                boolean win = game.getGameMoves().checkWin(player);
+                if(!win){
+                    draw = game.getGameMoves().isBoardFull();
+                }
+
+                if (win){
+                    GameManager.removeGame(gameID);
+                    if (playerSocket != null){
+                        playerSocket.send("You win, yay!! \n" + board);
+                    }
+                    if (opponentSocket != null){
+                        opponentSocket.send(player+ " won the game Loser bwahahaha\n" + board);
+                    }
+                } else if (draw) {
+                    GameManager.removeGame(gameID);
+                    if (playerSocket != null){
+                        playerSocket.send("It's a draw \n" + board);
+                    }
+                    if (opponentSocket != null){
+                        opponentSocket.send( "It's a draw\n" + board);
+                    }
+                } else {
+                    if (playerSocket != null){
+                        playerSocket.send("You played column " + col + ". Board:\n" + board + "\nWaiting for " + opponent + ".");
+                    }
+                    if (opponentSocket != null){
+                        opponentSocket.send(player+ "played column " + col + ". Board:\n" + board + "\nYour turnr ");
+                    }
+                }
+            }
 
         } else {
             connection.send("Here is the format: COMMAND <playerName> <GameID>(optional)");

@@ -40,6 +40,12 @@ public class GameManager {
         return null;
     }
 
+    public static void removeGame(String gameID){
+        if(allSessions.containsKey(gameID)) {
+            allSessions.remove(gameID);
+        }
+    }
+
     public static Game getGame(String gameID){
         return allSessions.get(gameID);
     }
