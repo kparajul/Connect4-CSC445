@@ -40,8 +40,8 @@ public class Client extends WebSocketClient {
                 }catch (Exception e){
                     System.out.println("Reconnection failed");
                     try{
-                        Thread.sleep(1000);
-                    } catch (InterruptedException ig){}
+                        Thread.sleep(100);
+                    } catch (InterruptedException ignored){}
                 }
             }
         }).start();
