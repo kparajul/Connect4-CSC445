@@ -2,6 +2,7 @@ package com.connect4.app.classes;
 import java.util.*;
 import java.util.stream.Collectors;
 
+// We are recording all moves and player's positions using moves. We are also checking game state in moves class (win/draw)
 public class Moves {
     private final int rows = 6;
     private final int columns = 7;

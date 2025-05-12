@@ -8,6 +8,8 @@ import java.net.URISyntaxException;
 import java.util.Scanner;
 
 public class Client extends WebSocketClient {
+    private static URI serverURI;
+    private static boolean exitProper;
 
     public Client(URI server) {
         super(server);
@@ -26,6 +28,37 @@ public class Client extends WebSocketClient {
     @Override
     public void onClose(int i, String s, boolean b) {
         System.out.println("Disconnected because: " + s);
+        new Thread(() -> {
+            while (!isOpen() && !exitProper){
+                try {
+                    System.out.println("Reconnecting");
+                    Client nClient = new Client(serverURI);
+                    nClient.connectBlocking();
+                    nClient.runCommandLoop();
+
+                    break;
+                }catch (Exception e){
+                    System.out.println("Reconnection failed");
+                    try{
+                        Thread.sleep(1000);
+                    } catch (InterruptedException ig){}
+                }
+            }
+        }).start();
+    }
+
+    public void runCommandLoop(){
+        Scanner scanner = new Scanner(System.in);
+        System.out.println("Type command:\n");
+        while (true){
+            String command = scanner.nextLine();
+            if (command.equalsIgnoreCase("exit")){
+                exitProper = true;
+                this.close();
+                break;
+            }
+            this.send(command);
+        }
     }
 
     @Override
@@ -34,20 +67,12 @@ public class Client extends WebSocketClient {
     }
 
     public static void main(String[] args) throws URISyntaxException, InterruptedException {
-        URI server = new URI("ws://localhost:3635");
-        Client client = new Client(server);
+        serverURI = new URI("ws://localhost:3635");
+        Client client = new Client(serverURI);
         client.connectBlocking();
+        client.runCommandLoop();
 
-        Scanner scanner = new Scanner(System.in);
-        System.out.println("Type command:\n");
-        while (true){
-            String command = scanner.nextLine();
-            if (command.equalsIgnoreCase("exit")){
-                client.close();
-                break;
-            }
-            client.send(command);
-        }
+
     }
 
 

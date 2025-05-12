@@ -9,7 +9,6 @@ import java.util.concurrent.ConcurrentHashMap;
 public class GameManager {
     private static final Map<String, Game> allSessions = new ConcurrentHashMap<>();
 
-
     public static Game joinGame (String playerID, String gameID){
         Game game = null;
         if (allSessions.containsKey(gameID)){
@@ -19,15 +18,18 @@ public class GameManager {
                 game = temp;
             }
         } else {
+            //if game doesn't exist, you create a new game
             System.out.println("Game doesn't exist lol");
             game = createGame(playerID);
         }
         return game;
     }
 
+    //you can create game with no player 2
     public static Game createGame(String playerID){
         String uniqueGameID = UUID.randomUUID().toString();
         Game game = new Game(playerID, null, uniqueGameID);
+        game.setPlayerTurn(playerID);
         allSessions.put(uniqueGameID, game);
         return game;
     }
@@ -41,9 +43,7 @@ public class GameManager {
     }
 
     public static void removeGame(String gameID){
-        if(allSessions.containsKey(gameID)) {
-            allSessions.remove(gameID);
-        }
+        allSessions.remove(gameID);
     }
 
     public static Game getGame(String gameID){

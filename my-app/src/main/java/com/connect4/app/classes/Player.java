@@ -1,28 +1,34 @@
 package com.connect4.app.classes;
 
 public class Player {
-    private int playerID;
-    private Moves playerMoves;
+    private String playerID;
+    private String gameID;
 
     //Constructor to initialize player with ID and moves
-    public Player(int playerID) {
+    public Player(String playerID, String gameID) {
         this.playerID = playerID;
-        this.playerMoves = new Moves(); // Initialize moves object
+        this.gameID = gameID; // Initialize moves object
     }
 
-    //Getters and Setters for player ID
-    public void setPlayerID(int playerID) {
-        this.playerID = playerID;
-    }
-    public int getPlayerID() {
+    public String getPlayerID(){
         return playerID;
     }
-
-    //Getters and Setters for player moves
-    public void setPlayerMoves(Moves playerMoves) {
-        this.playerMoves = playerMoves;
+    public String getGameID(){
+        return gameID;
     }
-    public Moves getPlayerMoves() {
-        return playerMoves;
-    }
+//    //Getters and Setters for player ID
+//    public void setPlayerID(int playerID) {
+//        this.playerID = playerID;
+//    }
+//    public int getPlayerID() {
+//        return playerID;
+//    }
+//
+//    //Getters and Setters for player moves
+//    public void setPlayerMoves(Moves playerMoves) {
+//        this.playerMoves = playerMoves;
+//    }
+//    public Moves getPlayerMoves() {
+//        return playerMoves;
+//    }
 }

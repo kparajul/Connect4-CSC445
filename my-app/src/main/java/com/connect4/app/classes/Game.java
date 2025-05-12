@@ -1,5 +1,6 @@
 package com.connect4.app.classes;
 
+//Game is something we plan to serialize and save as cache.
 public class Game {
 	private String gameId;
 	private String player1Id;
