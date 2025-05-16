@@ -14,6 +14,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import static com.connect4.app.GameLogic.GameManager.reconnect;
+
 public class RaftWebSocketServer extends WebSocketServer {
     private final Map<String, WebSocket> serverConnections;
     private final RaftNode raftNode;
@@ -38,9 +40,10 @@ public class RaftWebSocketServer extends WebSocketServer {
         serverConnections.put(remoteAddress, connection);
         System.out.println("New connection from: " + remoteAddress);
         if (!raftNode.getState().equals(RaftNode.State.LEADER)) {
-            connection.send("Redirecting to " + leaderAddress);
+            connection.send("REDIRECT " + leaderAddress);
         } else {
             connection.send("You are connected to leader. Ready to play.");
+            connection.send("CONNECTED:LEADER");
         }
     }
 
@@ -60,6 +63,7 @@ public class RaftWebSocketServer extends WebSocketServer {
 //        processMessage(message, connection);
         if (message.startsWith("gameRequest:")) {
             handleGameMessage(connection, message);
+            connection.send("ACK:" + message);
         } else {
             System.out.println("Received message: " + message);
         }
@@ -167,9 +171,10 @@ public class RaftWebSocketServer extends WebSocketServer {
         if (raftNode.getState() == RaftNode.State.LEADER) {
             raftNode.appendEntry(message);
             connection.send("Game action processed: " + message);
+            connection.send("CONNECTED:LEADER");
         } else {
             connection.send("You are connected to a follower. Redirecting to the leader...");
-            connection.send("Redirecting to leader at: " + leaderAddress);
+            connection.send("REDIRECT" + leaderAddress);
         }
     }
 
@@ -288,13 +293,9 @@ public class RaftWebSocketServer extends WebSocketServer {
 
     private void startHealthCheck() {
         scheduler.scheduleAtFixedRate(() -> {
-            // Periodically check for the leader
-            if (raftNode.getState() == RaftNode.State.LEADER) {
-                leaderAddress = this.getAddress().toString(); // Update leader address
-            }
-            // Check for any closed WebSocket connections and attempt to reconnect
             for (Map.Entry<String, WebSocket> entry : serverConnections.entrySet()) {
                 if (!entry.getValue().isOpen()) {
+                    System.out.println("Connection to " + entry.getKey() + " is closed, attempting to reconnect");
 //                    reconnect(entry.getKey());
                 }
             }
