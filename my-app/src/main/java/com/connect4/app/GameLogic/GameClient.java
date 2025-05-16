@@ -33,10 +33,10 @@ public class GameClient {
     }
 
     public void sendMove(String move) {
-        client.send("MOVE " + move);
+        client.send("gamerequest:"+"MOVE " + move);
     }
 
     public void createGame(String gameName) {
-        client.send("CREATE_GAME " + gameName);
+        client.send("gamerequest"+"CREATE_GAME " + gameName);
     }
 }

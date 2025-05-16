@@ -34,6 +34,9 @@ public class RaftNode {
     private static final int ELECTION_TIMEOUT_MIN = 2000; // 2 seconds
     private static final int ELECTION_TIMEOUT_MAX = 5000; // 5 seconds
     
+    private final RaftWebSocketServer webSocketServer;
+    private String leaderAddress;
+    
     public static class LogEntry {
         private final int term;
         private final String command;
@@ -65,6 +68,9 @@ public class RaftNode {
         // Initialize UDP server with the specified port
         this.udpServer = new RaftUDPServer(port, this);
         
+        // Initialize WebSocket server for client communication
+        this.webSocketServer = new RaftWebSocketServer(port,this);
+        
         // Initialize server addresses
         for (String server : clusterServers) {
             serverAddresses.put(server, server);
@@ -77,6 +83,9 @@ public class RaftNode {
         // Start the UDP server
         udpServer.start();
         
+        // Start the WebSocket server
+        webSocketServer.start();
+        
         // Connect to other servers
         List<String> otherServerAddresses = new ArrayList<>(serverAddresses.keySet());
         udpServer.connectToOtherServers(otherServerAddresses);
@@ -84,7 +93,7 @@ public class RaftNode {
         // Start election timer
         startElectionTimer();
         
-        System.out.println("RaftNode " + id + " started on port " + (26960));
+        System.out.println("RaftNode " + id + " started on port " + 26960);
         System.out.println("Connected to servers: " + otherServerAddresses);
     }
     
@@ -209,6 +218,9 @@ public class RaftNode {
             votedFor = -1;
             lastHeartbeatTime = System.currentTimeMillis();
             
+            // Update leader address
+            leaderAddress = "Server " + leaderId;
+            
             // Reset election timer
             startElectionTimer();
         }
@@ -304,12 +316,17 @@ public class RaftNode {
     private void applyLogEntry(LogEntry entry) {
         // Apply the log entry to the state machine
         System.out.println("Applying log entry: " + entry.getCommand());
-        // TODO: Implement state machine application
+        
+        // Broadcast the applied command to all connected clients
+        webSocketServer.broadcast("APPLIED:" + entry.getCommand());
     }
     
     private synchronized void becomeLeader() {
         state = State.LEADER;
         System.out.println("Server " + id + " became leader for term " + currentTerm.get());
+        
+        // Update leader address
+        leaderAddress = "Server " + id;
         
         // Initialize leader state
         for (String server : serverAddresses.keySet()) {
@@ -350,8 +367,13 @@ public class RaftNode {
         return log.isEmpty() ? 0 : log.get(log.size() - 1).getTerm();
     }
     
+    public String getLeaderAddress() {
+        return leaderAddress;
+    }
+    
     public void stop() {
         scheduler.shutdown();
         udpServer.stop();
+//        webSocketServer.stop();
     }
 }
