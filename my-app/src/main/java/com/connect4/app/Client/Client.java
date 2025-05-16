@@ -67,12 +67,10 @@ public class Client extends WebSocketClient {
     }
 
     public static void main(String[] args) throws URISyntaxException, InterruptedException {
-        serverURI = new URI("ws://localhost:3635");
+        serverURI = new URI("ws://localhost:26960");
         Client client = new Client(serverURI);
         client.connectBlocking();
         client.runCommandLoop();
-
-
     }
 
 
