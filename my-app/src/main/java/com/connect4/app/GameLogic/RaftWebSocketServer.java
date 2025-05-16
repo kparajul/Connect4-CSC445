@@ -1,13 +1,12 @@
 package com.connect4.app.GameLogic;
 
 import org.java_websocket.WebSocket;
-import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.handshake.ClientHandshake;
-import org.java_websocket.handshake.ServerHandshake;
 import org.java_websocket.server.WebSocketServer;
 
 import java.net.InetSocketAddress;
 import java.net.URI;
+import java.util.concurrent.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -159,7 +158,8 @@ public class RaftWebSocketServer extends WebSocketServer {
 
     private void handleGameMessage(WebSocket connection, String message) {
         if (raftNode.getState() == RaftNode.State.LEADER) {
-            raftNode.appendEntry(message);
+            raftNode.appendEntry(message);  // Commit game actions to log
+            GameManager.handleGameMessage(connection, message);
         } else {
             connection.send("Request denied, not the leader");
         }
