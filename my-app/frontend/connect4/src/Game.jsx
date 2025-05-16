@@ -1,14 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGameSocket } from './hooks/useGameSocket';
 import Board from './Board';
 
 const ROWS = 6;
 const COLS = 7;
 
-export default function Game() {
+export default function Game({ playerName, gameId }) {
   const [messages, setMessages] = useState([]);
-  const [gameId, setGameId] = useState('');
-  const [playerName, setPlayerName] = useState('');
   const [board, setBoard] = useState(Array(ROWS).fill().map(() => Array(COLS).fill(null)));
   const [status, setStatus] = useState('');
 
@@ -34,15 +32,15 @@ export default function Game() {
     }
   };
 
-  const send = useGameSocket('ws://localhost:26960', addMessage); // Point to leader server
+  const send = useGameSocket('ws://localhost:26960', addMessage);
 
-  const createGame = () => {
-    send(`NEW ${playerName}`);
-  };
-
-  const joinGame = () => {
-    send(`JOIN ${playerName} ${gameId}`);
-  };
+  useEffect(() => {
+    if (gameId) {
+      send(`JOIN ${playerName} ${gameId}`);
+    } else {
+      send(`NEW ${playerName}`);
+    }
+  }, [playerName, gameId]);
 
   const move = (col) => {
     send(`MOVE ${col}`);
@@ -51,10 +49,6 @@ export default function Game() {
   return (
     <div>
       <h1>Connect Four</h1>
-      <input value={playerName} onChange={(e) => setPlayerName(e.target.value)} placeholder="Your name" />
-      <input value={gameId} onChange={(e) => setGameId(e.target.value)} placeholder="Game ID" />
-      <button onClick={createGame}>Create Game</button>
-      <button onClick={joinGame}>Join Game</button>
       <p><strong>Status:</strong> {status}</p>
       <Board board={board} move={move} />
       <pre>{messages.join('\n')}</pre>
