@@ -1,0 +1,8 @@
+com/connect4/app/App.class
+com/connect4/app/classes/Game.class
+com/connect4/app/classes/Player.class
+com/connect4/app/Client/Client.class
+com/connect4/app/GameLogic/GameManager.class
+com/connect4/app/GameLogic/RaftManager.class
+com/connect4/app/GameLogic/Server.class
+com/connect4/app/classes/Moves.class
