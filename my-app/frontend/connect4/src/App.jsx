@@ -1,4 +1,13 @@
-import React, { useState } from 'react';
+import React from 'react';
+import Game from './Game';
+
+function App() {
+  return <Game />;
+}
+
+export default App;
+
+/*import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 
@@ -74,6 +83,25 @@ const App = () => {
   const [screen, setScreen] = useState('home'); 
   const [currentPlayer, setCurrentPlayer] = useState('R');
   const [winner, setWinner] = useState(null);
+  const [username, setUsername] = useState('');
+  const [showUsernameModal, setShowUsernameModal] = useState(false); // start as false
+  const [selectedOpponent, setSelectedOpponent] = useState('');
+
+  // Mocked list of usernames for now
+  const availableUsernames = ['Alice', 'Bob', 'Charlie', 'Dana'];
+
+  const handleUsernameSubmit = (e) => {
+    e.preventDefault();
+    if (username.trim()) {
+      setShowUsernameModal(false);
+      setScreen('select-opponent');
+    }
+  };
+
+  const handleOpponentSelect = (opponent) => {
+    setSelectedOpponent(opponent);
+    setScreen('home');
+  };
 
   const startGame = () => {
     setCurrentPlayer('R');
@@ -85,11 +113,52 @@ const App = () => {
     setScreen('home');
   };
 
+  // Username modal
+  if (showUsernameModal) {
+    return (
+      <div className="modal-overlay">
+        <div className="modal-box">
+          <h2>Enter your username</h2>
+          <form onSubmit={handleUsernameSubmit}>
+            <input
+              type="text"
+              value={username}
+              onChange={e => setUsername(e.target.value)}
+              placeholder="Username"
+              autoFocus
+            />
+            <button type="submit">Continue</button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // Opponent selection screen
+  if (screen === 'select-opponent') {
+    return (
+      <div className="app select-opponent-screen">
+        <h2>Welcome, {username}!</h2>
+        <h3>Select a player to play against:</h3>
+        <ul className="opponent-list">
+          {availableUsernames.filter(name => name !== username).map(name => (
+            <li key={name}>
+              <button onClick={() => handleOpponentSelect(name)}>{name}</button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+  // Home screen with Join Game button
   if (screen === 'home') {
     return (
       <div className="app home-screen">
-        <h1>Welcome to Connect Four</h1>
-        <button className="start-button" onClick={startGame}>Play Game</button>
+        <h1>Connect Four</h1>
+        <button className="start-button" onClick={() => setShowUsernameModal(true)}>
+          Join Game
+        </button>
       </div>
     );
   }
@@ -122,3 +191,4 @@ const App = () => {
 };
 
 export default App;
+*/

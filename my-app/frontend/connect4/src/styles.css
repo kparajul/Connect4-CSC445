@@ -1,7 +1,7 @@
 body {
     margin: 0;
     font-family: sans-serif;
-    background: linear-gradient(to bottom, #8a2be2 80%, #ffd447 20%);
+    background: linear-gradient(to bottom, #1976d2 80%, #ffd447 20%);
     min-height: 100vh;
     display: flex;
     justify-content: center;
@@ -37,7 +37,7 @@ body {
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    background-color: #8a2be2; 
+    background-color: #1976d2; 
     box-shadow: inset 0 0 0 8px #f5f5dc; 
     box-sizing: border-box;
   }
@@ -79,4 +79,3 @@ body {
     align-items: center;
     padding-top: 100px;
   }
-  
