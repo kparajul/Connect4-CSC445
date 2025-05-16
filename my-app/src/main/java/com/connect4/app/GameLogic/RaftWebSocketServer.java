@@ -16,7 +16,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import static com.connect4.app.GameLogic.GameManager.playerConnections;
+//import static com.connect4.app.GameLogic.GameManager.playerConnections;
 import static com.connect4.app.GameLogic.GameManager.reconnect;
 
 public class RaftWebSocketServer extends WebSocketServer {
@@ -26,7 +26,7 @@ public class RaftWebSocketServer extends WebSocketServer {
     private final ScheduledExecutorService scheduler;
     private String leaderAddress;
     private volatile boolean isRunning;
-
+    private static final Map<WebSocket, Player> playerConnections = new ConcurrentHashMap<>();
     public RaftWebSocketServer(int port, RaftNode raftNode) {
         super(new InetSocketAddress(port));
         this.raftNode = raftNode;
