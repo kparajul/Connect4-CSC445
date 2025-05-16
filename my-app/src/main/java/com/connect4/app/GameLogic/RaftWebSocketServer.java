@@ -1,5 +1,7 @@
 package com.connect4.app.GameLogic;
 
+import com.connect4.app.classes.Game;
+import com.connect4.app.classes.Player;
 import org.java_websocket.WebSocket;
 import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.handshake.ClientHandshake;
@@ -14,6 +16,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import static com.connect4.app.GameLogic.GameManager.playerConnections;
 import static com.connect4.app.GameLogic.GameManager.reconnect;
 
 public class RaftWebSocketServer extends WebSocketServer {
@@ -61,11 +64,157 @@ public class RaftWebSocketServer extends WebSocketServer {
 //            return;
 //        }
 //        processMessage(message, connection);
-        if (message.startsWith("gameRequest:")) {
-            handleGameMessage(connection, message);
-            connection.send("ACK:" + message);
+//        if (message.startsWith("gameRequest:")) {
+//            handleGameMessage(connection, message);
+//            connection.send("ACK:" + message);
+//        } else {
+//            System.out.println("Received message: " + message);
+//        }
+
+
+        String[] parse = message.split(" ");
+        if(parse.length<2){
+            connection.send("Invalid");
+            return;
+        }
+
+        ///////////////////////////////////////////////////////////////////
+        //creating a new game is NEW <playerName>
+        if(parse[0].equals("NEW")){
+            String playerName = parse[1];
+            Game game = GameManager.createGame(playerName);
+            playerConnections.put(connection, new Player(playerName, game.getGameId()));
+
+            connection.send("New Game created! Your game ID is:" + game.getGameId() + ". Share this gameID with a friend to play.");
+
+            ///////////////////////////////////////////////////////////////////
+            //joining someone else's game is JOIN <playerName> <gameID>
+        }else if (parse[0].equals("JOIN")){
+            if (parse.length < 3){
+                connection.send("Join command incorrect. Send: JOIN <playerName> <gameID>");
+                return;
+            }
+            //check if they CAN join the game
+            if (GameManager.getGame(parse[2]).getPlayer2Id()!=null){
+                connection.send("This game is full");
+                return;
+            }
+            playerConnections.put(connection, new Player(parse[1], parse[2]));
+
+            Game joinGame = GameManager.joinGame(parse[1], parse[2]);
+            if (joinGame != null) {
+                connection.send("Joined game " + parse[2] + "with player name " + parse[1]);
+            }
+
+            ///////////////////////////////////////////////////////////////////
+            //Reconnect a previous game. RECONNECT <playerName> <gameID>
+        }else if(parse[0].equals("RECONNECT")){
+            if(parse.length<3){
+                connection.send("Reconnect command incorrect. Send: RECONNECT <playerName> <gameID>");
+                return;
+            }
+            Game reGame = GameManager.reconnect(parse[1], parse[2]);
+            playerConnections.put(connection, new Player(parse[1], parse[2]));
+            connection.send("Rejoined game " + reGame);
+
+            //////////////////////////////////////////////////////////////////////
+            //Move command valid when they are in playerConnections
+        } else if (parse[0].equals("MOVE")) {
+            if(parse.length!= 2){
+                connection.send("You can move when you're in a game. Here is the command: MOVE <column>");
+                return;
+            }
+            //get their session using the shared hashmap
+            Player session = playerConnections.get(connection);
+            if(session == null){
+                connection.send("You're not currently in a game");
+                return;
+            }
+
+            //Once they are connected once, they don't have to input their player name and game ID
+            String player = session.getPlayerID();
+            String gameID = session.getGameID();
+            Game game = GameManager.getGame(gameID);
+
+            //just in case lol
+            if(!(game.getPlayer1Id().equals(player) || game.getPlayer2Id().equals(player))){
+                connection.send("Not your game");
+                return;
+            }
+
+            //check turn before making a move
+            if(!GameManager.getGame(gameID).getPlayerTurn().equals(player)){
+                connection.send("Not your turn");
+                return;
+            }
+            int col;
+            try{
+                col = Integer.parseInt(parse[1]);
+            }catch (NumberFormatException e){
+                connection.send("Move must be a number");
+                return;
+            }
+            String opponent;
+            if (player.equals(game.getPlayer1Id())) {
+                opponent = game.getPlayer2Id();
+            } else {
+                opponent = game.getPlayer1Id();
+            }
+            synchronized (game) {
+
+                //make a move
+                boolean moveMade = game.getGameMoves().makeMove(player, col);
+                game.setPlayerTurn(opponent);
+
+                if(!moveMade){
+                    connection.send("That's invalid bro");
+                    return;
+                }
+
+                String board = game.getGameMoves().getBoardString();
+
+                WebSocket opponentSocket = null;
+
+                for(Map.Entry<WebSocket, Player> key: playerConnections.entrySet()){
+                    if(key.getValue().getPlayerID().equals(opponent)){
+                        opponentSocket = key.getKey();
+                        break;
+                    }
+                }
+                boolean draw = false;
+                boolean win = game.getGameMoves().checkWin(player);
+                if(!win){
+                    draw = game.getGameMoves().isBoardFull();
+                }
+
+                if (win){
+                    GameManager.removeGame(gameID);
+                    if (connection != null){
+                        connection.send("You win, yay!! \n" + board);
+                    }
+                    if (opponentSocket != null){
+                        opponentSocket.send(player+ " won the game Loser bwahahaha\n" + board);
+                    }
+                } else if (draw) {
+                    GameManager.removeGame(gameID);
+                    if (connection != null){
+                        connection.send("It's a draw \n" + board);
+                    }
+                    if (opponentSocket != null){
+                        opponentSocket.send( "It's a draw\n" + board);
+                    }
+                } else {
+                    if (connection != null){
+                        connection.send("You played column " + col + ". Board:\n" + board + "\nWaiting for " + opponent + ".");
+                    }
+                    if (opponentSocket != null){
+                        opponentSocket.send(player+ "played column " + col + ". Board:\n" + board + "\nYour turn");
+                    }
+                }
+            }
+
         } else {
-            System.out.println("Received message: " + message);
+            connection.send("Wrong command");
         }
     }
 
