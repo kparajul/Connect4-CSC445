@@ -5,32 +5,37 @@ import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.handshake.ServerHandshake;
 import org.java_websocket.server.WebSocketServer;
+
 import java.net.InetSocketAddress;
 import java.net.URI;
-import java.util.concurrent.*;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class RaftWebSocketServer extends WebSocketServer {
+    private final Map<String, WebSocket> serverConnections;
+    private final RaftNode raftNode;
+    private final Map<String, WebSocketClient> clientConnections;
+    private final ScheduledExecutorService scheduler;
+    private volatile boolean isRunning;
 
-    private Map<String, WebSocket> serverConnections; // To store WebSocket connections with other Raft nodes
-    private RaftNode raftNode;
-
-    public RaftWebSocketServer(int port, RaftNode raftNode) {
+    public RaftWebSocketServer(int port, RaftNode raftNode, ScheduledExecutorService scheduler) {
         super(new InetSocketAddress(port));
         this.raftNode = raftNode;
         this.serverConnections = new ConcurrentHashMap<>();
+        this.clientConnections = new ConcurrentHashMap<>();
+        this.scheduler = scheduler;
+        this.isRunning = false;
     }
 
     @Override
     public void onOpen(WebSocket connection, ClientHandshake handshake) {
         String remoteAddress = connection.getRemoteSocketAddress().toString();
         serverConnections.put(remoteAddress, connection);
+        System.out.println((serverConnections.get(remoteAddress)));
         System.out.println("New connection from: " + remoteAddress);
-
-        // After accepting the WebSocket client connection, the server can send messages like a heartbeat
-        if (raftNode.getState() == RaftNode.State.LEADER) {
-            raftNode.sendHeartbeats();
-        }
     }
 
     @Override
@@ -38,119 +43,264 @@ public class RaftWebSocketServer extends WebSocketServer {
         String remoteAddress = connection.getRemoteSocketAddress().toString();
         serverConnections.remove(remoteAddress);
         System.out.println("Connection closed: " + remoteAddress);
+        
+        // Attempt to reconnect if this was an unexpected closure
+        if (isRunning && remote) {
+            reconnect(remoteAddress);
+        }
     }
 
     @Override
     public void onMessage(WebSocket connection, String message) {
-        // Handle messages from both game clients and other Raft nodes
-        if (message.startsWith("heartbeat")) {
-            handleHeartbeatMessage(message);
-        } else if (message.startsWith("voteRequest")) {
-            handleVoteRequest(message);
-        } else if (message.startsWith("voteResponse")) {
-            handleVoteResponse(message);
-        }else if (message.startsWith("logEntry")){
-            handleLogEntry(message);
-        }else {
-            // Handle game-specific messages (e.g., move or game creation)
-            handleGameMessage(connection, message);
+        if (message == null || message.isEmpty()) {
+            System.err.println("Received null or empty message");
+            return;
+        }
+        processMessage(message, connection);
+    }
+
+    private void processMessage(String message, WebSocket connection) {
+        try {
+            String[] parts = message.split(":");
+            String messageType = parts[0];
+
+            switch (messageType) {
+                case "heartbeat":
+                    if (validateMessage(parts, 4)) {
+                        handleHeartbeatMessage(parts);
+                    }
+                    break;
+                case "voteRequest":
+                    if (validateMessage(parts, 5)) {
+                        handleVoteRequest(parts);
+                    }
+                    break;
+                case "voteResponse":
+                    if (validateMessage(parts, 3)) {
+                        handleVoteResponse(parts);
+                    }
+                    break;
+                case "appendEntries":
+                    if (validateMessage(parts, 5)) {
+                        handleAppendEntries(parts);
+                    }
+                    break;
+                case "logEntry":
+                    if (validateMessage(parts, 2)) {
+                        handleLogEntry(parts);
+                    }
+                    break;
+                default:
+                    if (connection != null) {
+                        handleGameMessage(connection, message);
+                    } else {
+                        System.err.println("Received game message without connection context");
+                    }
+            }
+        } catch (Exception e) {
+            System.err.println("Error processing message: " + message);
+            e.printStackTrace();
         }
     }
 
-    @Override
-    public void onError(WebSocket connection, Exception ex) {
-        ex.printStackTrace();
-    }
-
-    @Override
-    public void onStart() {
-        System.out.println("Raft WebSocket Server started...");
-    }
-
-    // Method to send heartbeats to all other Raft nodes
-    public void sendHeartbeatsToFollowers() {
-        for (WebSocket ws : serverConnections.values()) {
-            String heartbeatMessage = "heartbeat:" + raftNode.getServerName() + ":" + raftNode.getCurrentTerm();
-            ws.send(heartbeatMessage);
+    private boolean validateMessage(String[] parts, int expectedLength) {
+        if (parts.length < expectedLength) {
+            System.err.println("Invalid message format: expected " + expectedLength + " parts, got " + parts.length);
+            return false;
         }
+        return true;
     }
 
-    // Handle heartbeat messages from other nodes
-    private void handleHeartbeatMessage(String message) {
-        String[] parts = message.split(":");
-        int leaderName = Integer.parseInt(parts[1]);
+    private void handleHeartbeatMessage(String[] parts) {
+        int leaderId = Integer.parseInt(parts[1]);
         int term = Integer.parseInt(parts[2]);
-
-        raftNode.receiveHeartbeat(leaderName, term); // Handle the heartbeat logic
+        int commitIndex = Integer.parseInt(parts[3]);
+        raftNode.receiveHeartbeat(leaderId, term);
     }
 
-    // Handle vote request from other nodes
-    private void handleVoteRequest(String message) {
-        String[] parts = message.split(":");
-        String candidate = parts[1];
+    private void handleVoteRequest(String[] parts) {
+        int candidateId = Integer.parseInt(parts[1]);
         int term = Integer.parseInt(parts[2]);
-        raftNode.requestVote(Integer.parseInt(candidate), term);
+        int lastLogIndex = Integer.parseInt(parts[3]);
+        int lastLogTerm = Integer.parseInt(parts[4]);
+        raftNode.requestVote(candidateId, term, lastLogIndex, lastLogTerm);
     }
 
-    // Handle vote response from other nodes
-    private void handleVoteResponse(String message) {
-        String[] parts = message.split(":");
-        String candidate = parts[1];
-        raftNode.receiveVote(); // Process the vote
+    private void handleVoteResponse(String[] parts) {
+        int voterId = Integer.parseInt(parts[1]);
+        int term = Integer.parseInt(parts[2]);
+        raftNode.receiveVote(voterId, term);
     }
 
-    private void handleLogEntry(String message) {
-        String parts = message.split(":")[1];
-        raftNode.replicateLog(message);
+    private void handleAppendEntries(String[] parts) {
+        int leaderId = Integer.parseInt(parts[1]);
+        int term = Integer.parseInt(parts[2]);
+        int prevLogIndex = Integer.parseInt(parts[3]);
+        int prevLogTerm = Integer.parseInt(parts[4]);
+        
+        List<RaftNode.LogEntry> entries = new ArrayList<>();
+        if (parts.length > 5) {
+            String[] entryStrings = parts[5].split(",");
+            for (String entryStr : entryStrings) {
+                String[] entryParts = entryStr.split(":");
+                int entryTerm = Integer.parseInt(entryParts[0]);
+                String command = entryParts[1];
+                entries.add(new RaftNode.LogEntry(entryTerm, command));
+            }
+        }
+        
+        raftNode.receiveAppendEntries(leaderId, term, prevLogIndex, prevLogTerm, entries);
     }
 
-    // Handle game-related messages from WebSocket clients (players)
+    private void handleLogEntry(String[] parts) {
+        String entry = parts[1];
+        raftNode.appendEntry(entry);
+    }
+
     private void handleGameMessage(WebSocket connection, String message) {
-        // Example: Handle game moves or game creation
         if (raftNode.getState() == RaftNode.State.LEADER) {
-            raftNode.appendEntry(message);  // Commit game actions to log
+            raftNode.appendEntry(message);
         } else {
             connection.send("Request denied, not the leader");
         }
     }
 
-    public WebSocket getWebSocket() {
-        return serverConnections.values().iterator().next();
+    @Override
+    public void onError(WebSocket connection, Exception ex) {
+        System.err.println("WebSocket error: " + ex.getMessage());
+        ex.printStackTrace();
     }
 
-    public String getAddress1(){
+    @Override
+    public void onStart() {
+        isRunning = true;
+        System.out.println("Raft WebSocket Server started on port " + getPort());
+        startHealthCheck();
+    }
+
+    public WebSocket getWebSocket(String address) {
+        return serverConnections.get(address);
+    }
+
+    public String getAddress1() {
         return this.getAddress().toString();
     }
 
-    // Connect to other servers in the Raft cluster using WebSocket clients
-//    public void connectToOtherServers(List<String> otherServers) {
-//        for (String serverAddress : otherServers) {
-//            try {
-//                WebSocketClient client = new WebSocketClient(new URI("ws://" + serverAddress)) {
-//                    @Override
-//                    public void onOpen(ServerHandshake handshake) {
-//                        System.out.println("Connected to server: " + serverAddress);
-//                    }
-//
-//                    @Override
-//                    public void onMessage(String message) {
-//                        // Handle incoming messages from this server
-//                    }
-//
-//                    @Override
-//                    public void onClose(int code, String reason, boolean remote) {
-//                        System.out.println("Connection closed to: " + serverAddress);
-//                    }
-//
-//                    @Override
-//                    public void onError(Exception ex) {
-//                        ex.printStackTrace();
-//                    }
-//                };
-//                client.connect();
-//            } catch (Exception e) {
-//                e.printStackTrace();
-//            }
+    public void connectToOtherServers(List<String> otherServers) {
+        for (String serverAddress : otherServers) {
+            connectWithRetry(serverAddress, 3);
+        }
+    }
+
+    private void connectWithRetry(String serverAddress, int maxRetries) {
+        int retries = 0;
+        while (retries < maxRetries && isRunning) {
+            try {
+                WebSocketClient client = createWebSocketClient(serverAddress);
+                client.connect();
+                return;
+            } catch (Exception e) {
+                retries++;
+                if (retries == maxRetries) {
+                    System.err.println("Failed to connect to " + serverAddress + " after " + maxRetries + " attempts");
+                    break;
+                }
+                try {
+                    Thread.sleep(1000 * retries); // Exponential backoff
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }
+    }
+
+    private WebSocketClient createWebSocketClient(String serverAddress) throws Exception {
+        return new WebSocketClient(new URI("ws://" + serverAddress)) {
+            @Override
+            public void onOpen(ServerHandshake handshake) {
+                System.out.println("Connected to server: " + serverAddress);
+                clientConnections.put(serverAddress, this);
+                System.out.println(clientConnections.get(serverAddress));
+            }
+
+            @Override
+            public void onMessage(String message) {
+//                onMessage(null, message);
+            }
+
+            @Override
+            public void onClose(int code, String reason, boolean remote) {
+                System.out.println("Connection closed to: " + serverAddress);
+                clientConnections.remove(serverAddress);
+                // Attempt to reconnect if this was an unexpected closure
+//                if (isRunning && remote) {
+//                    reconnect(serverAddress);
+//                }
+            }
+
+            @Override
+            public void onError(Exception ex) {
+                System.err.println("Error connecting to " + serverAddress + ": " + ex.getMessage());
+                ex.printStackTrace();
+            }
+        };
+    }
+
+    private void reconnect(String address) {
+        if (!isRunning) return;
+        
+        System.out.println("Attempting to reconnect to: " + address);
+        connectWithRetry(address, 3);
+    }
+
+    public void stop() {
+        isRunning = false;
+        
+        // Close all client connections
+        for (WebSocketClient client : clientConnections.values()) {
+            client.close();
+        }
+        clientConnections.clear();
+        
+        // Close all server connections
+        for (WebSocket connection : serverConnections.values()) {
+            connection.close();
+        }
+        serverConnections.clear();
+        
+        // Stop the server
+        try {
+            super.stop();
+        } catch (Exception e) {
+            System.err.println("Error stopping server: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private void startHealthCheck() {
+        scheduler.scheduleAtFixedRate(() -> {
+            if (!isRunning) return;
+            
+            for (Map.Entry<String, WebSocket> entry : serverConnections.entrySet()) {
+                if (!entry.getValue().isOpen()) {
+                    System.out.println("Connection to " + entry.getKey() + " is closed, attempting to reconnect");
+                    reconnect(entry.getKey());
+                }
+            }
+        }, 0, 5000, TimeUnit.MILLISECONDS);
+    }
+
+//    public static void main(String[] args) {
+//        RaftNode raftNode1 = new RaftNode(1, new ArrayList<>());
+//        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+//        RaftWebSocketServer server1 = new RaftWebSocketServer(26960, raftNode1, scheduler);
+//        server1.start();
+//        try{
+//            Thread.sleep(5000);
+//        }catch (InterruptedException ie) {
+//            Thread.currentThread().interrupt();
 //        }
+//        server1.connectToOtherServers(Arrays.asList("pi.cs.oswego.edu:26960"));
 //    }
 }
